@@ -1,16 +1,19 @@
 const daisyui = require("daisyui");
 const typography = require("@tailwindcss/typography");
-const forms = require("@tailwindcss/forms");
 
 /** @type {import('tailwindcss').Config}*/
 const config = {
-  content: ["./src/**/*.{html,js,svelte,ts}"],
+	content: ["./src/**/*.{html,js,svelte,ts}"],
 
-  theme: {
-    extend: {}
-  },
+	theme: {
+		extend: {}
+	},
 
-  plugins: [forms, typography, daisyui]
+	plugins: [typography, daisyui],
+
+	daisyui: {
+		themes: ["sunset", "lemonade"]
+	}
 };
 
 module.exports = config;
