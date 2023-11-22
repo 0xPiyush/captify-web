@@ -276,6 +276,7 @@ model users {
   identities                  identities[]
   mfa_factors                 mfa_factors[]
   sessions                    sessions[]
+  Project                     Project[]
 
   @@index([instance_id])
   @@schema("auth")
@@ -311,3 +312,19 @@ enum factor_type {
 }
 
 //#endregion
+
+model Project {
+  id                                    String   @id @default(cuid())
+  name                                  String
+  raw_video_bucket_path                 String?  @unique
+  transcription_native_language         String?
+  generated_media_title                 String?
+  generated_media_description           String?
+  generated_media_thumbnail_bucket_path String?
+  createdAt                             DateTime @default(now())
+  updatedAt                             DateTime @updatedAt
+  owner                                 users    @relation(fields: [ownerId], references: [id])
+  ownerId                               String   @db.Uuid
+
+  @@schema("public")
+}

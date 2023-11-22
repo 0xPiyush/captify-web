@@ -12,7 +12,7 @@ const config = {
 	plugins: [typography, daisyui],
 
 	daisyui: {
-		themes: ["sunset", "lemonade"]
+		themes: ["dracula", "retro"]
 	}
 };
 

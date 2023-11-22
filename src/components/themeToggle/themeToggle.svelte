@@ -1,18 +1,38 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-
-	let light = true;
+	import { lightTheme } from "./store";
 
 	export let width = 40;
 
+	let themes = {
+		light: "retro",
+		dark: "dracula"
+	};
+
+	function toggleTheme() {
+		if ($lightTheme) {
+			localStorage.setItem("theme", themes.dark);
+			document.documentElement.setAttribute("data-theme", themes.dark);
+		} else {
+			localStorage.setItem("theme", themes.light);
+			document.documentElement.setAttribute("data-theme", themes.light);
+		}
+	}
+
 	onMount(() => {
-		light = localStorage.getItem("theme") == "lemonade";
+		lightTheme.set(localStorage.getItem("theme") == themes.light);
+
+		if ($lightTheme) {
+			document.documentElement.setAttribute("data-theme", themes.light);
+		} else {
+			document.documentElement.setAttribute("data-theme", themes.dark);
+		}
 	});
 </script>
 
 <label class="swap swap-rotate">
 	<!-- this hidden checkbox controls the state -->
-	<input type="checkbox" data-toggle-theme="sunset,lemonade" bind:checked={light} />
+	<input type="checkbox" bind:checked={$lightTheme} on:click={toggleTheme} />
 
 	<!-- sun icon -->
 	<svg class="swap-on fill-current" {width} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"

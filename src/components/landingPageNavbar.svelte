@@ -5,14 +5,14 @@
 	import LogosGithubIcon from "~icons/skill-icons/github-light";
 	import Spinner from "~icons/svg-spinners/270-ring";
 
-	import ThemeToggle from "./themeToggle.svelte";
-	import { onMount } from "svelte";
-	import { themeChange } from "theme-change";
+	import ThemeToggle from "./themeToggle/themeToggle.svelte";
 	import type { PageData } from "../routes/(landing)/$types";
 
 	export let data: PageData;
 	let { supabase, session } = data;
 	$: ({ supabase, session } = data);
+
+	export let modalOpen = false;
 
 	let modal: HTMLDialogElement;
 
@@ -66,9 +66,9 @@
 		}
 	}
 
-	onMount(() => {
-		themeChange(false);
-	});
+	$: if (modalOpen) {
+		modal.showModal();
+	}
 </script>
 
 <nav class="py-6 font-bold">
@@ -98,7 +98,7 @@
 		{#if session}
 			<div class="flex items-center justify-end text-lg lg:text-xl">
 				<div class="dropdown dropdown-end">
-					<span role="button" tabindex="0" class="btn m-1">
+					<span role="button" tabindex="0" class="btn">
 						{session.user.email?.substring(0, 6)}...{session.user.email?.substring(
 							session.user.email.length - 10
 						)}
@@ -108,7 +108,7 @@
 						tabindex="0"
 						class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52"
 					>
-						<li><a href="#/dashboard">Dashboard</a></li>
+						<li><a href="/app/dashboard/projects">Dashboard</a></li>
 						<li><button on:click={signout}>Sign out</button></li>
 					</ul>
 				</div>
@@ -165,7 +165,7 @@
                     enabled:hover:outline-accent
                     enabled:hover:scale-105
                     disabled:cursor-not-allowed
-                    disabled:text-white
+                    disabled:text-neutral-content
                     disabled:bg-neutral
                     transition"
 					disabled={modalDisabled}
@@ -185,7 +185,7 @@
                     enabled:hover:outline-accent
                     enabled:hover:scale-105
                     disabled:cursor-not-allowed
-                    disabled:text-white
+                    disabled:text-neutral-content
                     disabled:bg-neutral
                     transition"
 					disabled={modalDisabled}
