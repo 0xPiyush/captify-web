@@ -6,7 +6,7 @@
 
 	import ThemeToggle from "$components/themeToggle/themeToggle.svelte";
 	import { onMount } from "svelte";
-	import { PUBLIC_LLAMA_API, PUBLIC_STORAGE_BUCKET, PUBLIC_WHISPER_API } from "$env/static/public";
+	import { PUBLIC_STORAGE_BUCKET } from "$env/static/public";
 
 	export let data;
 	let { supabase, session } = data;
