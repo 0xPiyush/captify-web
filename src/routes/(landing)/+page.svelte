@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from "svelte";
-	import LandingPageNavbar from "../../components/landingPageNavbar.svelte";
+	import LandingPageNavbar from "$components/landingPageNavbar.svelte";
 
 	export let data;
 

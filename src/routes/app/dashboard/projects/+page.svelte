@@ -4,7 +4,7 @@
 	import HamburgerMenu from "~icons/solar/hamburger-menu-line-duotone";
 	import Spinner from "~icons/svg-spinners/270-ring";
 
-	import ThemeToggle from "../../../../components/themeToggle/themeToggle.svelte";
+	import ThemeToggle from "$components/themeToggle/themeToggle.svelte";
 	import { onMount } from "svelte";
 
 	export let data;
@@ -28,11 +28,11 @@
 	type Project = {
 		id: string;
 		name: string;
-		raw_media_url: string;
-		transcription_native_language_url: string;
-		transcription_eng_language_url: string;
+		raw_video_bucket_path: string;
+		transcription_native_language_bucket_path: string;
+		transcription_eng_language_bucket_path: string;
 		generated_media_title: string;
-		generated_media_thumbnail_url: string;
+		generated_media_thumbnail_bucket_path: string;
 		ownerId: string;
 	};
 	onMount(async () => {
@@ -103,11 +103,7 @@
 								href={`/app/dashboard/studio/${project.id}`}
 								class="flex flex-col items-center justify-center bg-base-200 rounded-lg p-5 hover:bg-base-300 hover:-translate-y-2 outline-none hover:outline-2 hover:outline-base-content transition-all"
 							>
-								<img
-									src={project.raw_media_url}
-									alt="Project Cover"
-									class="w-full h-48 object-cover rounded-lg"
-								/>
+								<div class="w-full h-48 object-cover rounded-lg" />
 								<span class="text-xl font-semibold">{project.name}</span>
 							</a>
 						{/each}

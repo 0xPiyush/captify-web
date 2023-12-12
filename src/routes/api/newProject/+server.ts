@@ -6,10 +6,13 @@ export const GET: RequestHandler = async (event) => {
 	if (!session) {
 		return json({ error: "Not logged in" }, { status: 401 });
 	}
-	// Get all projects for the current user
+
+	const random_num = Math.floor(Math.random() * 1000);
+
+	// Create new project
 	const project = await db.project.create({
 		data: {
-			name: "New Project",
+			name: `New Project ${random_num}`,
 			ownerId: session.user.id
 		}
 	});

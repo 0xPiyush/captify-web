@@ -4,8 +4,7 @@
 	import HamburgerMenu from "~icons/solar/hamburger-menu-line-duotone";
 	import Spinner from "~icons/svg-spinners/270-ring";
 
-	import ThemeToggle from "../../../../../components/themeToggle/themeToggle.svelte";
-	import { onMount } from "svelte";
+	import ThemeToggle from "$components/themeToggle/themeToggle.svelte";
 	import { PUBLIC_STORAGE_BUCKET } from "$env/static/public";
 
 	export let data;
@@ -33,33 +32,147 @@
 		ownerId: string;
 	};
 
-	let selectedVideoFile: FileList;
+	let selectedFiles: FileList;
 	let uploading = false;
-	async function uploadToStorage() {
-		if (selectedVideoFile.length != 1) return;
+
+	async function extractAudioFromVideo(videoFile: File) {
+		// Extract audio from video
+		const fileData = new Blob([videoFile], { type: videoFile.type });
+		const buffer = await fileData.arrayBuffer();
+
+		const audioContext = new AudioContext();
+		const audioBuffer = await audioContext.decodeAudioData(buffer);
+
+		// Convert audio buffer to Blob
+		const [left, right] = [audioBuffer.getChannelData(0), audioBuffer.getChannelData(1)];
+
+		// interleave both channels together
+		const interleaved = new Float32Array(left.length + right.length);
+		for (let src = 0, dst = 0; src < left.length; src++, dst += 2) {
+			interleaved[dst] = left[src];
+			interleaved[dst + 1] = right[src];
+		}
+
+		// create the wav blob and pass it on to createDownloadLink
+		const wavBytes = getWavBytes(interleaved.buffer, {
+			isFloat: true,
+			numChannels: 2,
+			sampleRate: audioBuffer.sampleRate,
+			bitDepth: 32
+		});
+
+		const wav = new Blob([wavBytes], { type: "audio/wav" });
+		return wav;
+	}
+
+	function getWavBytes(
+		buffer: ArrayBuffer,
+		options: { isFloat: boolean; numChannels: number; sampleRate: number; bitDepth: number }
+	) {
+		const type = options.isFloat ? Float32Array : Uint16Array;
+		const numFrames = buffer.byteLength / type.BYTES_PER_ELEMENT;
+
+		const headerBytes = getWavHeader(options, numFrames);
+		const wavBytes = new Uint8Array(headerBytes.length + buffer.byteLength);
+
+		// prepend header, then add pcmBytes
+		wavBytes.set(headerBytes, 0);
+		wavBytes.set(new Uint8Array(buffer), headerBytes.length);
+
+		return wavBytes;
+	}
+
+	function getWavHeader(
+		options: {
+			isFloat: boolean;
+			numChannels: number;
+			sampleRate: number;
+			bitDepth: number;
+		},
+		numFrames: number
+	) {
+		const numChannels = options.numChannels || 2;
+		const sampleRate = options.sampleRate || 44100;
+		const bytesPerSample = options.isFloat ? 4 : 2;
+		const format = options.isFloat ? 3 : 1;
+
+		const blockAlign = numChannels * bytesPerSample;
+		const byteRate = sampleRate * blockAlign;
+		const dataSize = numFrames * blockAlign;
+
+		const buffer = new ArrayBuffer(44);
+		const dv = new DataView(buffer);
+
+		let p = 0;
+
+		function writeString(s: string) {
+			for (let i = 0; i < s.length; i++) {
+				dv.setUint8(p + i, s.charCodeAt(i));
+			}
+			p += s.length;
+		}
+
+		function writeUint32(d: number) {
+			dv.setUint32(p, d, true);
+			p += 4;
+		}
+
+		function writeUint16(d: number) {
+			dv.setUint16(p, d, true);
+			p += 2;
+		}
+
+		writeString("RIFF"); // ChunkID
+		writeUint32(dataSize + 36); // ChunkSize
+		writeString("WAVE"); // Format
+		writeString("fmt "); // Subchunk1ID
+		writeUint32(16); // Subchunk1Size
+		writeUint16(format); // AudioFormat https://i.stack.imgur.com/BuSmb.png
+		writeUint16(numChannels); // NumChannels
+		writeUint32(sampleRate); // SampleRate
+		writeUint32(byteRate); // ByteRate
+		writeUint16(blockAlign); // BlockAlign
+		writeUint16(bytesPerSample * 8); // BitsPerSample
+		writeString("data"); // Subchunk2ID
+		writeUint32(dataSize); // Subchunk2Size
+
+		return new Uint8Array(buffer);
+	}
+
+	async function processSelectedFile() {
+		if (selectedFiles.length != 1) return;
 		uploading = true;
 
-		// Create a new project
+		const videoFile = selectedFiles[0];
+		// const audioFile = await extractAudioFromVideo(videoFile);
 
+		// get created project
 		let createdProject: Project = await (await fetch("/api/newProject")).json();
 
 		console.log(createdProject);
 
+		// upload video file
 		const { data, error } = await supabase.storage
 			.from(PUBLIC_STORAGE_BUCKET)
-			.upload(`/${createdProject.id}/raw_video.mp4`, selectedVideoFile[0]);
+			.upload(`${session?.user.id}/${createdProject.id}/raw_video.mp4`, videoFile);
+
+		// // upload audio file
+		// const { data: audioData, error: audioError } = await supabase.storage
+		// 	.from(PUBLIC_STORAGE_BUCKET)
+		// 	.upload(`${session?.user.id}/${createdProject.id}/raw_audio.wav`, audioFile);
+
+		// TODO: handle file upload errors
 
 		await fetch("/api/updateProject", {
 			method: "POST",
 			body: JSON.stringify({
 				projectId: createdProject.id,
 				updates: {
-					raw_video_bucket_path: `/${createdProject.id}/raw_video.mp4`
+					raw_video_bucket_path: `${session?.user.id}/${createdProject.id}/raw_video.mp4`
+					// raw_audio_bucket_path: `${session?.user.id}/${createdProject.id}/raw_audio.wav`
 				}
 			})
 		});
-
-		console.log(data, error);
 
 		uploading = false;
 
@@ -93,6 +206,7 @@
 		<div id="page-content" class="w-full h-full p-10">
 			<div class="flex justify-center items-center">
 				<div class="form-control w-full max-w-xs">
+					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<label class="label">
 						<span class="label-text">Choose a video to continue</span>
 					</label>
@@ -100,12 +214,12 @@
 						type="file"
 						class="file-input file-input-bordered w-full max-w-xs"
 						accept="video/*"
-						bind:files={selectedVideoFile}
+						bind:files={selectedFiles}
 					/>
 					<button
 						class="btn btn-primary mt-2"
-						disabled={!selectedVideoFile || uploading}
-						on:click={uploadToStorage}
+						disabled={!selectedFiles || uploading}
+						on:click={processSelectedFile}
 					>
 						{#if uploading}
 							<Spinner />

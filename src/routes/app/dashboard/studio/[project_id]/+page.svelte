@@ -4,7 +4,7 @@
 	import HamburgerMenu from "~icons/solar/hamburger-menu-line-duotone";
 	import Spinner from "~icons/svg-spinners/270-ring";
 
-	import ThemeToggle from "../../../../../components/themeToggle/themeToggle.svelte";
+	import ThemeToggle from "$components/themeToggle/themeToggle.svelte";
 	import { onMount } from "svelte";
 	import { PUBLIC_LLAMA_API, PUBLIC_STORAGE_BUCKET, PUBLIC_WHISPER_API } from "$env/static/public";
 
@@ -29,90 +29,138 @@
 	let generatedDescription: string = "";
 	let generatedTags: string = "";
 
+	async function transcribeAudio(audioFileUrl: string) {
+		type TranscribeAudioResponse = {
+			message: string;
+			data: string;
+		};
+
+		const res = await fetch("/api/transcribeAudio", {
+			method: "POST",
+			body: JSON.stringify({
+				audioFileUrl
+			})
+		});
+
+		const { data }: TranscribeAudioResponse = await res.json();
+		return data;
+	}
+
+	async function generateTitle(transcription: string) {
+		type GenerateTitleResponse = {
+			message: string;
+			data: string;
+		};
+
+		const res = await fetch("/api/generateVideoTitle", {
+			method: "POST",
+			body: JSON.stringify({
+				videoTranscript: transcription
+			})
+		});
+
+		const { data }: GenerateTitleResponse = await res.json();
+
+		return data;
+	}
+
+	async function generateDescription(transcription: string, videoTitle: string) {
+		type GenerateDescriptionResponse = {
+			message: string;
+			data: string;
+		};
+
+		const res = await fetch("/api/generateVideoDescription", {
+			method: "POST",
+			body: JSON.stringify({
+				videoTranscript: transcription,
+				videoTitle
+			})
+		});
+
+		const { data }: GenerateDescriptionResponse = await res.json();
+
+		return data;
+	}
+
+	async function generateTags(transcription: string, videoTitle: string, videoDescription: string) {
+		type GenerateTagsResponse = {
+			message: string;
+			data: string;
+		};
+
+		const res = await fetch("/api/generateVideoTags", {
+			method: "POST",
+			body: JSON.stringify({
+				videoTranscript: transcription,
+				videoTitle,
+				videoDescription
+			})
+		});
+
+		const { data }: GenerateTagsResponse = await res.json();
+
+		return data;
+	}
+
+	function updateDataInDB(updates: any) {
+		fetch("/api/updateProject", {
+			method: "POST",
+			body: JSON.stringify({
+				projectId: data.project.id,
+				updates
+			})
+		});
+	}
+
 	onMount(async () => {
+		let updateGeneratedDataInDB = false;
+
 		let res = await supabase.storage
 			.from(PUBLIC_STORAGE_BUCKET)
-			.createSignedUrl(data.project.raw_video_bucket_path!.substring(1), 60 * 60 * 24 * 7, {
+			.createSignedUrl(data.project.raw_video_bucket_path!, 60 * 60 * 24 * 7, {
 				download: true
 			});
 
 		videoUrl = res.data?.signedUrl!;
 
 		if (data.project.transcription_native_language == null) {
-			const res = await fetch(`${PUBLIC_WHISPER_API}/transcribe`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					Accept: "application/json"
-				},
-				body: JSON.stringify({
-					file_url: videoUrl
-				})
-			});
-
-			transcription = (await res.json()).text;
-			// transcription = res;
+			const text = await transcribeAudio(videoUrl);
+			updateGeneratedDataInDB = true;
+			transcription = text;
 		} else {
 			transcription = data.project.transcription_native_language;
 		}
 
 		if (data.project.generated_media_title == null) {
-			const res = await fetch(`${PUBLIC_LLAMA_API}/api/generate`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					Accept: "application/json"
-				},
-				body: JSON.stringify({
-					model: "mistral",
-					stream: false,
-					prompt: `Here is a youtube video title for a video with following transcription: 
-                    ${transcription}`
-				})
-			});
-
-			generatedTitle = (await res.json()).response;
+			generatedTitle = await generateTitle(transcription);
+			updateGeneratedDataInDB = true;
 		} else {
 			generatedTitle = data.project.generated_media_title;
 		}
 
 		if (data.project.generated_media_description == null) {
-			const res = await fetch(`${PUBLIC_LLAMA_API}/api/generate`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					Accept: "application/json"
-				},
-				body: JSON.stringify({
-					model: "mistral",
-					stream: false,
-					prompt: `Write a youtube video description for a video with following title and transcription: 
-                    Title: ${generatedTitle}
-                    Transcription: ${transcription}`
-				})
-			});
-
-			generatedDescription = (await res.json()).response;
+			generatedDescription = await generateDescription(transcription, generatedTitle);
+			updateGeneratedDataInDB = true;
 		} else {
 			generatedDescription = data.project.generated_media_description;
 		}
 
-		const tagsRes = await fetch(`${PUBLIC_LLAMA_API}/api/generate`, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				Accept: "application/json"
-			},
-			body: JSON.stringify({
-				model: "mistral",
-				stream: false,
-				prompt: `Write comma separated tags for a youtube video with following title and description: 
-                Title: ${generatedTitle}
-                Description: ${generatedDescription}`
-			})
-		});
+		if (data.project.generated_media_tags == null) {
+			generatedTags = await generateTags(transcription, generatedTitle, generatedDescription);
+			updateGeneratedDataInDB = true;
+		} else {
+			generatedTags = data.project.generated_media_tags;
+		}
 
-		generatedTags = (await tagsRes.json()).response;
+		if (updateGeneratedDataInDB) {
+			await updateDataInDB({
+				transcription_native_language: transcription,
+				generated_media_title: generatedTitle,
+				generated_media_description: generatedDescription,
+				generated_media_tags: generatedTags
+			});
+		}
 	});
 </script>
 
@@ -144,9 +192,10 @@
 			class="w-full h-full p-5 grid grid-cols-1 justify-center md:grid-cols-2 gap-4"
 		>
 			<!-- Display video -->
+			<!-- svelte-ignore a11y-media-has-caption -->
 			<video
 				id="video"
-				class="border rounded-lg aspect-square w-full h-72 md:h-96"
+				class="border border-neutral rounded-lg aspect-square w-full h-72 md:h-96"
 				src={videoUrl}
 				controls
 				controlsList="nodownload"
@@ -210,6 +259,7 @@
 			</div>
 			<ul id="sidebar-links" class="flex flex-col gap-5">
 				<li><a class="" href="/app/dashboard/projects">Projects</a></li>
+				<!-- svelte-ignore a11y-invalid-attribute -->
 				<li><a class="active" href="">Studio</a></li>
 				<!-- <li><a class="" href="/app/dashboard/imgen">Image generation</a></li> -->
 				<li><a class="" href="/app/dashboard/chat">Chat</a></li>
